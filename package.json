@@ -1,6 +1,8 @@
 {
   "dependencies": {
     "cheerio": "^1.0.0-rc.2",
-    "node-fetch": "^2.3.0"
+    "fs": "^0.0.1-security",
+    "node-fetch": "^2.3.0",
+    "node-xlsx": "^0.14.1"
   }
 }

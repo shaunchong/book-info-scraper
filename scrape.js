@@ -2,6 +2,9 @@ const fetch = require('node-fetch');
 const cheerio = require('cheerio');
 const bookDepo = `https://www.bookdepository.com`;
 const mockResponse = require('./mock-response');
+const xlsx = require('node-xlsx').default;
+const fs = require('fs');
+
 
 // const entryPoint = `${hostname}/bestsellers`;
 
@@ -33,6 +36,112 @@ const mockResponse = require('./mock-response');
 
   const isbnList = ['9781328460837', '9781328557261', '9781328566423', '9781328567550', '9781328585080', '9781328588777', 
     '9781328589279', '9781328589828', '9781328594433', '9781328604309', '9781328662057', '9781328780966', '9781328879981'];
+
+    const spreadsheet = xlsx.parse(`${__dirname}/Book List.xlsx`);
+    const columnIndexes = {};
+    if (spreadsheet.length > 0 && spreadsheet[0].data.length > 2) {
+      let spreadsheetHeaderRow = spreadsheet[0].data[1];
+      spreadsheetHeaderRow.forEach((columnName, index) => {
+        // Column index lookup by name
+        columnIndexes[columnName] = index;
+      });
+
+      switch("undefined") {
+        case typeof(columnIndexes['ISBN Number']):
+        case typeof(columnIndexes['LENGTH']):
+        case typeof(columnIndexes['WIDTH']):
+        case typeof(columnIndexes['HEIGHT']):
+        case typeof(columnIndexes['Binding']):
+        case typeof(columnIndexes['Number of Pages']):
+        case typeof(columnIndexes['Synopsis']):
+        case typeof(columnIndexes['Title']):
+          throw new Error('Required columns do not exist');
+        default:
+          break;
+      }
+
+      // var workingData = spreadsheet[0].data.slice(0, 5);
+      // workingData.forEach(async (row, rowNumber) => {
+      //   if (rowNumber < 2) {
+      //     return;
+      //   }
+      //   let isbn = '';
+      //   try {
+      //     isbn = row[columnIndexes['ISBN Number']];
+      //     let response = await getPage(`${bookDepo}/seo/${isbn}`);
+      //     let processed = processPage(response);
+      //     processed.isbn = isbn;
+
+      //     workingData[rowNumber][columnIndexes['LENGTH']]          = processed.dimensionL;
+      //     workingData[rowNumber][columnIndexes['WIDTH']]           = processed.dimensionW;
+      //     workingData[rowNumber][columnIndexes['HEIGHT']]          = processed.dimensionH;
+      //     workingData[rowNumber][columnIndexes['Binding']]         = processed.binding;
+      //     workingData[rowNumber][columnIndexes['Number of Pages']] = processed.pages;
+      //     workingData[rowNumber][columnIndexes['Synopsis']]        = processed.synopsis;
+      //     console.log(workingData);
+      //   }
+      //   catch(e) {
+      //     console.log(`Could not load ISBN ${isbn} - ${e.message}`)
+      //   }
+      // });
+
+      async function asyncForEach(array, callback) {
+        for (let index = 0; index < array.length; index++) {
+          await callback(array[index], index, array);
+        }
+      }
+
+      var workingData = spreadsheet[0].data.slice(0, 5);
+      const loopIt = async () => {
+        await asyncForEach(workingData, async (row, rowNumber) => {
+          if (rowNumber < 2) {
+            return;
+          }
+          let isbn = '';
+          try {
+            isbn = row[columnIndexes['ISBN Number']];
+            let response = await getPage(`${bookDepo}/seo/${isbn}`);
+            let processed = processPage(response);
+            processed.isbn = isbn;
+  
+            workingData[rowNumber][columnIndexes['LENGTH']]          = processed.dimensionL;
+            workingData[rowNumber][columnIndexes['WIDTH']]           = processed.dimensionW;
+            workingData[rowNumber][columnIndexes['HEIGHT']]          = processed.dimensionH;
+            workingData[rowNumber][columnIndexes['Binding']]         = processed.binding;
+            workingData[rowNumber][columnIndexes['Number of Pages']] = processed.pages;
+            workingData[rowNumber][columnIndexes['Synopsis']]        = processed.synopsis;
+            console.log('Processing line ' + rowNumber);
+          }
+          catch(e) {
+            console.log(`Could not load ISBN ${isbn} - ${e.message}`)
+          }
+        });
+      }
+      await loopIt();
+
+      var buffer = xlsx.build([{name: "mySheetName", data: workingData}]); // Returns a buffer
+
+      let path = 'output.xlsx';  
+
+      // open the file in writing mode, adding a callback function where we do the actual writing
+      fs.open(path, 'w', function(err, fd) {  
+          if (err) {
+              throw 'could not open file: ' + err;
+          }
+
+          // write the contents of the buffer, from position 0 to the end, to the file descriptor returned in opening our file
+          fs.write(fd, buffer, 0, buffer.length, null, function(err) {
+              if (err) throw 'error writing file: ' + err;
+              fs.close(fd, function() {
+                  console.log('wrote the file successfully');
+              });
+          });
+      });
+    } else {
+      throw new Error('Spreadsheet does not have any valid data');
+    }
+
+    return;
 
     isbnList.forEach(async (isbn) => {
     try {
@@ -72,6 +181,7 @@ function processPage(html) {
     title: '',
     binding: '',
     pages: '',
+    synopsis: '',
     dimensionL: '0',
     dimensionW: '0',
     dimensionH: '0'
@@ -80,7 +190,7 @@ function processPage(html) {
 
   // Remove the "show more..." node
   $('.item-description .item-excerpt a').remove();
-  details.synopsys = cleanString($('.item-description .item-excerpt').text().trim());
+  details.synopsis = $('.item-description .item-excerpt').text();
 
   let biblio = $('.biblio-info li');
   biblio.each((index, item)=> {
@@ -99,10 +209,14 @@ function processPage(html) {
       case 'Dimensions':
         let dimensions = desc.split('|')[0];
         let dimensionsSplit = dimensions.split('x');
-        if (dimensionsSplit.length == 3) {
+
+        if (dimensionsSplit.length == 2 || dimensionsSplit.length == 3) {
           details.dimensionL = dimensionsSplit[0].trim();
           details.dimensionW = dimensionsSplit[1].trim();
-          details.dimensionH = dimensionsSplit[2].replace("mm", "").trim();
+
+          if (dimensionsSplit.length == 3) {
+            details.dimensionH = dimensionsSplit[2].replace("mm", "").trim();
+          }
         }
         break;
       default:

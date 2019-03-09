@@ -64,13 +64,13 @@ async function processRow(row, rowNumber, columnIndexes) {
 
     // Iterate over all rows that have values in a worksheet
     if (rowNumber < 3) {
-      return
+      return;
     }
     let isbn = '';
     try {
       console.log('Processing line ' + rowNumber);
       isbn = row.getCell(columnIndexes['ISBN Number']).value;
-      let response = await getPage(`${bookDepo}/seo/${isbn}`)
+      let response = await getPage(`${bookDepo}/book/${isbn}`)
       let processed = processPage(response);
       processed.isbn = isbn;
 
@@ -80,8 +80,8 @@ async function processRow(row, rowNumber, columnIndexes) {
       row.getCell(columnIndexes['Binding']).value = processed.binding;
       row.getCell(columnIndexes['Number of Pages']).value = processed.pages;
       row.getCell(columnIndexes['Synopsis']).value = processed.synopsis;
+      row.getCell(43).value = `${bookDepo}/seo/${isbn}`;
 
-      // worksheet.getRow(rowNumber).values = row.values;
       return;
       
       
@@ -125,7 +125,7 @@ function processPage(html) {
 
   // Remove the "show more..." node
   $('.item-description .item-excerpt a').remove();
-  details.synopsis = $('.item-description .item-excerpt').text();
+  details.synopsis = $('.item-description .item-excerpt').text().trim().replace(/ +/g, " ");
 
   let biblio = $('.biblio-info li');
   biblio.each((index, item)=> {

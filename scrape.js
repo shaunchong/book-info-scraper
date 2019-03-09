@@ -14,7 +14,7 @@ console.time("mainScript");
 const workbook = new Excel.Workbook();
 ( function () {
 
-    workbook.xlsx.readFile(`${__dirname}/Book List2.xlsx`)
+    workbook.xlsx.readFile(`${__dirname}/Book List.xlsx`)
       .then(function() {
 
           worksheet = workbook.getWorksheet(1);
@@ -41,27 +41,36 @@ const workbook = new Excel.Workbook();
           }
 
           // Rate limit!
-          const limit = pLimit(10);
+          const limit = pLimit(25);
           const promises = [];
           worksheet.eachRow((row, rowNumber) => {
+            if(rowNumber > 1000) {
+              return;
+            }
+            
             promises.push(limit(() => processRow(row, rowNumber, columnIndexes)))
+
+            
           });
+          
+
           // Use the reduce trick to chain the promises together so that
           // it is run sequentially
-          promises.reduce((p, fn) => p.then(fn), Promise.resolve())
+          promises.reduce((p, fn) => p.then(fn), Promise.resolve());
 
-          Promise.all(promises).then(function() {
-            workbook.xlsx.writeFile('output.xlsx').then(function () {
-              console.log('Output to file successfully');
-              console.timeEnd("mainScript");
-              return;
-            })
+          
+
+          Promise.all(promises).then(() => {
+              workbook.xlsx.writeFile('output.xlsx').then(() => {
+                console.log('Output to file successfully');
+                console.timeEnd("mainScript");
+                return;
+              })
           })
 
         }).catch(e => {console.log(e)});
     return;
 })();
-
 
 async function processRow(row, rowNumber, columnIndexes) {
 
@@ -84,10 +93,11 @@ async function processRow(row, rowNumber, columnIndexes) {
       row.getCell(columnIndexes['Number of Pages']).value = processed.pages;
       row.getCell(columnIndexes['Synopsis']).value = processed.synopsis;
       row.getCell(43).value = {
-        text: `${bookDepo}/bool/${isbn}`,
-        hyperlink: `${bookDepo}/bool/${isbn}`,
-        tooltip: `${bookDepo}/bool/${isbn}`
+        text: `${bookDepo}/book/${isbn}`,
+        hyperlink: `${bookDepo}/book/${isbn}`,
+        tooltip: `${bookDepo}/book/${isbn}`
       }
+      row.commit();
       return;
       
       
@@ -167,30 +177,6 @@ function processPage(html) {
   });
 
   return details;
-
-  return fetch(url)
-    .then(res => res.text())
-    .then(body => {
-      let $ = cheerio.load(body)
-      let details = {}
-      details.title = $('.item-info h1').text()
-
-      let biblio = $('.biblio-info li');
-      biblio.each(item => {
-        console.log(item);
-        //console.log(item.find('label').text)
-      })
-      // details.bookType = cleanString($($biblio[0]).find('span')[0].text())
-
-      // details.dimensions = cleanString($($biblio[1]).find('span').text())
-
-      // details.publicationDate = cleanString($($biblio[2]).find('span').text())
-      // details.publisher = cleanString($($biblio[3]).find('span').text())
-      return details;
-  })
-  .catch((e) => {
-    console.log(e);
-  })
 }
 
 function cleanString(str) {
@@ -207,7 +193,7 @@ function abbreviateFormat(format) {
       return 'PB';
     case 'Hardback':
       return 'HB';
-    case 'Board Books':
+    case 'Board book':
       return 'BB';
     default:
       return format;

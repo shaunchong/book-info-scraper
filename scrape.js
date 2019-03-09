@@ -1,164 +1,99 @@
 const fetch = require('node-fetch');
 const cheerio = require('cheerio');
+const Excel = require('exceljs');
 const bookDepo = `https://www.bookdepository.com`;
 const mockResponse = require('./mock-response');
-const xlsx = require('node-xlsx').default;
-const fs = require('fs');
+const pLimit = require('p-limit');
 
+async function asyncForEach(array, callback) {
+  for (let index = 0; index < array.length; index++) {
+    await callback(array[index], index, array);
+  }
+}
+const workbook = new Excel.Workbook();
+( function () {
 
-// const entryPoint = `${hostname}/bestsellers`;
+    workbook.xlsx.readFile(`${__dirname}/Book List2.xlsx`)
+      .then(function() {
 
-// fetch(entryPoint)
-//   .then(response => response.text())
-//   .then(body => {
-//     let $ = cheerio.load(body)
-//     let bookItems = $('.book-item .item-img a')
-   
-//     let urlsToVisit = []
-//     bookItems.each((index, item) => {
-//       urlsToVisit.push(item.attribs.href)
-//     })
+          worksheet = workbook.getWorksheet(1);
 
-//     urlsToVisit = urlsToVisit.slice(0, 1);
+          const columnIndexes = {};
 
-//     urlsToVisit.forEach(async item => {
-//       let url = `${hostname}/${item}`
+          // Column index lookup by name
+          worksheet.getRow(2).eachCell((columnName, columnNumber) => {
+            columnIndexes[columnName] = columnNumber;
+          })
 
-//       let response = await processPage(url);
-//       console.log(response);
-//     })
-//   })
-//   .catch((e) => {
-//     console.log(e);
-//   })
-
-(async function () {
-
-  const isbnList = ['9781328460837', '9781328557261', '9781328566423', '9781328567550', '9781328585080', '9781328588777', 
-    '9781328589279', '9781328589828', '9781328594433', '9781328604309', '9781328662057', '9781328780966', '9781328879981'];
-
-    const spreadsheet = xlsx.parse(`${__dirname}/Book List.xlsx`);
-    const columnIndexes = {};
-    if (spreadsheet.length > 0 && spreadsheet[0].data.length > 2) {
-      let spreadsheetHeaderRow = spreadsheet[0].data[1];
-      spreadsheetHeaderRow.forEach((columnName, index) => {
-        // Column index lookup by name
-        columnIndexes[columnName] = index;
-      });
-
-      switch("undefined") {
-        case typeof(columnIndexes['ISBN Number']):
-        case typeof(columnIndexes['LENGTH']):
-        case typeof(columnIndexes['WIDTH']):
-        case typeof(columnIndexes['HEIGHT']):
-        case typeof(columnIndexes['Binding']):
-        case typeof(columnIndexes['Number of Pages']):
-        case typeof(columnIndexes['Synopsis']):
-        case typeof(columnIndexes['Title']):
-          throw new Error('Required columns do not exist');
-        default:
-          break;
-      }
-
-      // var workingData = spreadsheet[0].data.slice(0, 5);
-      // workingData.forEach(async (row, rowNumber) => {
-      //   if (rowNumber < 2) {
-      //     return;
-      //   }
-      //   let isbn = '';
-      //   try {
-      //     isbn = row[columnIndexes['ISBN Number']];
-      //     let response = await getPage(`${bookDepo}/seo/${isbn}`);
-      //     let processed = processPage(response);
-      //     processed.isbn = isbn;
-
-      //     workingData[rowNumber][columnIndexes['LENGTH']]          = processed.dimensionL;
-      //     workingData[rowNumber][columnIndexes['WIDTH']]           = processed.dimensionW;
-      //     workingData[rowNumber][columnIndexes['HEIGHT']]          = processed.dimensionH;
-      //     workingData[rowNumber][columnIndexes['Binding']]         = processed.binding;
-      //     workingData[rowNumber][columnIndexes['Number of Pages']] = processed.pages;
-      //     workingData[rowNumber][columnIndexes['Synopsis']]        = processed.synopsis;
-      //     console.log(workingData);
-      //   }
-      //   catch(e) {
-      //     console.log(`Could not load ISBN ${isbn} - ${e.message}`)
-      //   }
-      // });
-
-      async function asyncForEach(array, callback) {
-        for (let index = 0; index < array.length; index++) {
-          await callback(array[index], index, array);
-        }
-      }
-
-      var workingData = spreadsheet[0].data.slice(0, 5);
-      const loopIt = async () => {
-        await asyncForEach(workingData, async (row, rowNumber) => {
-          if (rowNumber < 2) {
-            return;
-          }
-          let isbn = '';
-          try {
-            isbn = row[columnIndexes['ISBN Number']];
-            let response = await getPage(`${bookDepo}/seo/${isbn}`);
-            let processed = processPage(response);
-            processed.isbn = isbn;
-  
-            workingData[rowNumber][columnIndexes['LENGTH']]          = processed.dimensionL;
-            workingData[rowNumber][columnIndexes['WIDTH']]           = processed.dimensionW;
-            workingData[rowNumber][columnIndexes['HEIGHT']]          = processed.dimensionH;
-            workingData[rowNumber][columnIndexes['Binding']]         = processed.binding;
-            workingData[rowNumber][columnIndexes['Number of Pages']] = processed.pages;
-            workingData[rowNumber][columnIndexes['Synopsis']]        = processed.synopsis;
-            console.log('Processing line ' + rowNumber);
-          }
-          catch(e) {
-            console.log(`Could not load ISBN ${isbn} - ${e.message}`)
-          }
-        });
-      }
-      await loopIt();
-
-      var buffer = xlsx.build([{name: "mySheetName", data: workingData}]); // Returns a buffer
-
-      let path = 'output.xlsx';  
-
-      // open the file in writing mode, adding a callback function where we do the actual writing
-      fs.open(path, 'w', function(err, fd) {  
-          if (err) {
-              throw 'could not open file: ' + err;
+          switch("undefined") {
+            case typeof(columnIndexes['ISBN Number']):
+            case typeof(columnIndexes['LENGTH']):
+            case typeof(columnIndexes['WIDTH']):
+            case typeof(columnIndexes['HEIGHT']):
+            case typeof(columnIndexes['Binding']):
+            case typeof(columnIndexes['Number of Pages']):
+            case typeof(columnIndexes['Synopsis']):
+            case typeof(columnIndexes['Title']):
+              throw new Error('Required columns do not exist');
+            default:
+              break;
           }
 
-          // write the contents of the buffer, from position 0 to the end, to the file descriptor returned in opening our file
-          fs.write(fd, buffer, 0, buffer.length, null, function(err) {
-              if (err) throw 'error writing file: ' + err;
-              fs.close(fd, function() {
-                  console.log('wrote the file successfully');
-              });
+          // Rate limit!
+          const limit = pLimit(10);
+          const promises = [];
+          worksheet.eachRow((row, rowNumber) => {
+            promises.push(limit(() => processRow(row, rowNumber, columnIndexes)))
           });
-      });
-    } else {
-      throw new Error('Spreadsheet does not have any valid data');
-    }
+          // Use the reduce trick to chain the promises together so that
+          // it is run sequentially
+          promises.reduce((p, fn) => p.then(fn), Promise.resolve())
 
+          Promise.all(promises).then(function() {
+            workbook.xlsx.writeFile('output.xlsx').then(function () {
+              console.log('Output to file successfully');
+              return;
+            })
+          })
+
+        }).catch(e => {console.log(e)});
     return;
+})();
 
-    isbnList.forEach(async (isbn) => {
+async function processRow(row, rowNumber, columnIndexes) {
+
+    // Iterate over all rows that have values in a worksheet
+    if (rowNumber < 3) {
+      return
+    }
+    let isbn = '';
     try {
-      let response = await getPage(`${bookDepo}/seo/${isbn}`);
+      console.log('Processing line ' + rowNumber);
+      isbn = row.getCell(columnIndexes['ISBN Number']).value;
+      let response = await getPage(`${bookDepo}/seo/${isbn}`)
       let processed = processPage(response);
       processed.isbn = isbn;
-      console.log(processed);
+
+      row.getCell(columnIndexes['LENGTH']).value = processed.dimensionL;
+      row.getCell(columnIndexes['WIDTH']).value = processed.dimensionW;
+      row.getCell(columnIndexes['HEIGHT']).value = processed.dimensionH;
+      row.getCell(columnIndexes['Binding']).value = processed.binding;
+      row.getCell(columnIndexes['Number of Pages']).value = processed.pages;
+      row.getCell(columnIndexes['Synopsis']).value = processed.synopsis;
+
+      // worksheet.getRow(rowNumber).values = row.values;
+      return;
+      
+      
     }
-    catch(e) {
+    catch (e) {
       console.log(`Could not load ISBN ${isbn} - ${e.message}`)
+      throw new Error(e.message);
     }
-  })
-})();
+}
 
 function getPage(url) {
   return new Promise((resolve, reject) => {
-
     fetch(url)
       .then(res => {
         if (res.status !== 200) {

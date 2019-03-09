@@ -10,6 +10,7 @@ async function asyncForEach(array, callback) {
     await callback(array[index], index, array);
   }
 }
+console.time("mainScript");
 const workbook = new Excel.Workbook();
 ( function () {
 
@@ -52,6 +53,7 @@ const workbook = new Excel.Workbook();
           Promise.all(promises).then(function() {
             workbook.xlsx.writeFile('output.xlsx').then(function () {
               console.log('Output to file successfully');
+              console.timeEnd("mainScript");
               return;
             })
           })
@@ -59,6 +61,7 @@ const workbook = new Excel.Workbook();
         }).catch(e => {console.log(e)});
     return;
 })();
+
 
 async function processRow(row, rowNumber, columnIndexes) {
 
@@ -80,8 +83,11 @@ async function processRow(row, rowNumber, columnIndexes) {
       row.getCell(columnIndexes['Binding']).value = processed.binding;
       row.getCell(columnIndexes['Number of Pages']).value = processed.pages;
       row.getCell(columnIndexes['Synopsis']).value = processed.synopsis;
-      row.getCell(43).value = `${bookDepo}/seo/${isbn}`;
-
+      row.getCell(43).value = {
+        text: `${bookDepo}/bool/${isbn}`,
+        hyperlink: `${bookDepo}/bool/${isbn}`,
+        tooltip: `${bookDepo}/bool/${isbn}`
+      }
       return;
       
       
@@ -147,7 +153,7 @@ function processPage(html) {
 
         if (dimensionsSplit.length == 2 || dimensionsSplit.length == 3) {
           details.dimensionL = dimensionsSplit[0].trim();
-          details.dimensionW = dimensionsSplit[1].trim();
+          details.dimensionW = dimensionsSplit[1].replace("mm", "").trim();
 
           if (dimensionsSplit.length == 3) {
             details.dimensionH = dimensionsSplit[2].replace("mm", "").trim();

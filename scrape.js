@@ -1,9 +1,9 @@
-const fetch = require('node-fetch')
-const cheerio = require('cheerio')
-const hostname = `https://www.bookdepository.com`
+const fetch = require('node-fetch');
+const cheerio = require('cheerio');
+const bookDepo = `https://www.bookdepository.com`;
 const mockResponse = require('./mock-response');
 
-const entryPoint = `${hostname}/bestsellers`;
+// const entryPoint = `${hostname}/bestsellers`;
 
 // fetch(entryPoint)
 //   .then(response => response.text())
@@ -30,31 +30,57 @@ const entryPoint = `${hostname}/bestsellers`;
 //   })
 
 (async function () {
-  let response = await processPage('https://www.bookdepository.com/Good-Kind-Trouble-Lisa-Moore-Ramee/9780062836687?ref=grid-view')
-  console.log(response);
+
+  const isbnList = ['9781328460837', '9781328557261', '9781328566423', '9781328567550', '9781328585080', '9781328588777', 
+    '9781328589279', '9781328589828', '9781328594433', '9781328604309', '9781328662057', '9781328780966', '9781328879981'];
+
+    isbnList.forEach(async (isbn) => {
+    try {
+      let response = await getPage(`${bookDepo}/seo/${isbn}`);
+      let processed = processPage(response);
+      processed.isbn = isbn;
+      console.log(processed);
+    }
+    catch(e) {
+      console.log(`Could not load ISBN ${isbn} - ${e.message}`)
+    }
+  })
 })();
 
+function getPage(url) {
+  return new Promise((resolve, reject) => {
 
+    fetch(url)
+      .then(res => {
+        if (res.status !== 200) {
+          throw new Error('Page load error. Status code: ' + res.status);
+        }
+        return res.text()
+      })
+      .then(body => {
+        resolve(body);
+      })
+      .catch(err => {
+        reject(err);
+      });
+  });
+}
 
-function processPage(url) {
-
-  // TITLE, BINDING, DIMENSIONS (L,W,H without weight), NUMBER OF PAGES AND SYNOPSIS
-
-  const $ = cheerio.load(mockResponse);
+function processPage(html) {
+  const $ = cheerio.load(html);
   const details = {
     title: '',
     binding: '',
-    format: '',
     pages: '',
-    dimensionL: '',
-    dimensionW: '',
-    dimensionH: ''
+    dimensionL: '0',
+    dimensionW: '0',
+    dimensionH: '0'
   };
   details.title = $('.item-info h1[itemprop=name]').text().trim();
 
   // Remove the "show more..." node
   $('.item-description .item-excerpt a').remove();
-  details.synopsys = $('.item-description .item-excerpt').text().trim();
+  details.synopsys = cleanString($('.item-description .item-excerpt').text().trim());
 
   let biblio = $('.biblio-info li');
   biblio.each((index, item)=> {
@@ -66,7 +92,7 @@ function processPage(url) {
         let formatSplit = desc.split('|');
         details.binding = abbreviateFormat(formatSplit[0].trim());
         if (typeof formatSplit[1] !== 'undefined') {
-          details.pages = formatSplit[1].trim();
+          details.pages = formatSplit[1].replace("pages", "").trim();
         }
         // Can get the binding and number of pages here
         break;
@@ -83,7 +109,6 @@ function processPage(url) {
         break;
       
     }
-    console.log($(item).find('label').text());
   });
 
   return details;

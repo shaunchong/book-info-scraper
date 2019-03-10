@@ -5,11 +5,6 @@ const bookDepo = `https://www.bookdepository.com`;
 const mockResponse = require('./mock-response');
 const pLimit = require('p-limit');
 
-async function asyncForEach(array, callback) {
-  for (let index = 0; index < array.length; index++) {
-    await callback(array[index], index, array);
-  }
-}
 console.time("mainScript");
 const workbook = new Excel.Workbook();
 ( function () {
@@ -44,23 +39,17 @@ const workbook = new Excel.Workbook();
           const limit = pLimit(25);
           const promises = [];
           worksheet.eachRow((row, rowNumber) => {
-            if(rowNumber > 1000) {
-              return;
-            }
-            
             promises.push(limit(() => processRow(row, rowNumber, columnIndexes)))
-
-            
           });
-          
 
           // Use the reduce trick to chain the promises together so that
           // it is run sequentially
           promises.reduce((p, fn) => p.then(fn), Promise.resolve());
 
-          
-
-          Promise.all(promises).then(() => {
+          // Catch the errors before the rejected promises get sent to
+          // Promise.all(), which allows us to proceed with writing to the file
+          // despite some promises being rejected due to web errors
+          Promise.all(promises.map(p => p.catch(e => e))).then(() => {
               workbook.xlsx.writeFile('output.xlsx').then(() => {
                 console.log('Output to file successfully');
                 console.timeEnd("mainScript");
@@ -73,7 +62,6 @@ const workbook = new Excel.Workbook();
 })();
 
 async function processRow(row, rowNumber, columnIndexes) {
-
     // Iterate over all rows that have values in a worksheet
     if (rowNumber < 3) {
       return;
@@ -83,15 +71,16 @@ async function processRow(row, rowNumber, columnIndexes) {
       console.log('Processing line ' + rowNumber);
       isbn = row.getCell(columnIndexes['ISBN Number']).value;
       let response = await getPage(`${bookDepo}/book/${isbn}`)
-      let processed = processPage(response);
-      processed.isbn = isbn;
+      let bookDetails = processPage(response);
+      bookDetails.isbn = isbn;
 
-      row.getCell(columnIndexes['LENGTH']).value = processed.dimensionL;
-      row.getCell(columnIndexes['WIDTH']).value = processed.dimensionW;
-      row.getCell(columnIndexes['HEIGHT']).value = processed.dimensionH;
-      row.getCell(columnIndexes['Binding']).value = processed.binding;
-      row.getCell(columnIndexes['Number of Pages']).value = processed.pages;
-      row.getCell(columnIndexes['Synopsis']).value = processed.synopsis;
+      row.getCell(columnIndexes['Title']).value = bookDetails.title;
+      row.getCell(columnIndexes['LENGTH']).value = bookDetails.dimensionL;
+      row.getCell(columnIndexes['WIDTH']).value = bookDetails.dimensionW;
+      row.getCell(columnIndexes['HEIGHT']).value = bookDetails.dimensionH;
+      row.getCell(columnIndexes['Binding']).value = bookDetails.binding;
+      row.getCell(columnIndexes['Number of Pages']).value = bookDetails.pages;
+      row.getCell(columnIndexes['Synopsis']).value = bookDetails.synopsis;
       row.getCell(43).value = {
         text: `${bookDepo}/book/${isbn}`,
         hyperlink: `${bookDepo}/book/${isbn}`,
@@ -99,8 +88,6 @@ async function processRow(row, rowNumber, columnIndexes) {
       }
       row.commit();
       return;
-      
-      
     }
     catch (e) {
       console.log(`Could not load ISBN ${isbn} - ${e.message}`)

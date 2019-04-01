@@ -48,7 +48,7 @@ const workbook = new excelJs.Workbook();
         const promises = [];
         worksheet.eachRow((row, rowNumber) => {
           // Skip to rows where the data starts from
-          if (rowNumber < 3) {
+          if (rowNumber < dataRowStartsFromIndex) {
             return;
           }
 
@@ -85,7 +85,7 @@ const workbook = new excelJs.Workbook();
  */
 async function processRow(row, rowNumber, columnIndexes) {
   let isbn = '';
-            
+
   try {
     console.log(`Processing line ${rowNumber}`);
     isbn = row.getCell(columnIndexes['ISBN Number']).value;

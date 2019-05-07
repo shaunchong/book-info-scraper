@@ -29,6 +29,5 @@ so results may vary).
 
 ## Possible improvements
 - For a project that took a couple of days over the weekend, the script is very straightforward and is meant to do a very specific task
-- This also means there are many potential areas of improvement -- code could use some tests, less hardcoding, more generic wrapper functions sowe can swap out the Excel and web request implementations, enforce type-checking, etc. so that it could also be re-used for other Excel + scraping projects in the future
-- One of the requirements of this project was to specifically scrape bookdepository.com, however I could transform this to use a
-Books API for future projects
+- This also means there are many potential areas of improvement -- code could use some tests, less hardcoding, more generic wrapper functions so we can swap out the Excel and web request implementations, enforce type-checking, etc. so that it could also be re-used for other Excel + scraping projects in the future
+- One of the requirements of this project was to specifically scrape bookdepository.com, however I could transform this to use a Books API for future projects
